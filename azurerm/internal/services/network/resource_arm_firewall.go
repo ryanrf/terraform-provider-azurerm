@@ -81,6 +81,11 @@ func resourceArmFirewall() *schema.Resource {
 
 			"zones": azure.SchemaMultipleZones(),
 
+			"vhub_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+			},
+
 			"tags": tags.Schema(),
 		},
 	}
@@ -129,12 +134,18 @@ func resourceArmFirewallCreateUpdate(d *schema.ResourceData, meta interface{}) e
 
 	locks.MultipleByName(subnetToLock, SubnetResourceName)
 	defer locks.UnlockMultipleByName(subnetToLock, SubnetResourceName)
-
+	var virtualHub *network.SubResource
+	if d.Get("vhub_id") != nil {
+		virtualHub = &network.SubResource{
+			ID: utils.String(d.Get("vhub_id").(string)),
+		}
+	}
 	parameters := network.AzureFirewall{
-		Location: &location,
+		Location: utils.String(location),
 		Tags:     tags.Expand(t),
 		AzureFirewallPropertiesFormat: &network.AzureFirewallPropertiesFormat{
 			IPConfigurations: ipConfigs,
+			VirtualHub: virtualHub,
 		},
 		Zones: zones,
 	}
@@ -211,6 +222,9 @@ func resourceArmFirewallRead(d *schema.ResourceData, meta interface{}) error {
 	if props := read.AzureFirewallPropertiesFormat; props != nil {
 		if err := d.Set("ip_configuration", flattenArmFirewallIPConfigurations(props.IPConfigurations)); err != nil {
 			return fmt.Errorf("Error setting `ip_configuration`: %+v", err)
+		}
+		if err := d.Set("vhub_id", props.VirtualHub); err != nil {
+			return fmt.Errorf("Error setting `vhub_id`: %+v", err)
 		}
 	}
 
